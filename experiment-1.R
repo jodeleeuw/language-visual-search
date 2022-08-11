@@ -7,7 +7,7 @@ library(ggplot2)
 #import data file
 data <- read.csv("exp-1-data.csv")
   
-#get subset of data relevant to experiment
+#get subset of columns relevant to experiment
 data <- data %>%
   select(subject_id, condition, target_present, center, trial_index, trial_type, key_press, correct, rt)%>%
   mutate(condition = if_else(condition == 0 | condition == 1, "language", "abstract"))
@@ -60,11 +60,17 @@ data1 <- data1 %>% filter(!subject_id %in% data1_n_per_subject$subject_id)
 
 # plot data
 
-ggplot(data1, aes(x=condition, y=RT, fill=center)) + 
-  geom_boxplot()+
-  labs(x="Condition", y="Response Time (ms)")+
-  scale_fill_manual(name="Center", labels=c("Cross", "Oddball"), values = c("cross"="darkseagreen3", "oddball"="lightgoldenrod1"))+
-  theme_bw(base_size=14)
+data1_summary <- data1 %>% group_by(condition, center) %>%
+  summarize(M = mean(RT), SE = sd(RT) / sqrt(n()))
+
+plot_all <- ggplot(data1, aes(x=condition, y=RT, color=center)) + 
+  geom_jitter(alpha=0.2, position = position_jitterdodge(jitter.width=0.2))+
+  geom_point(data=data1_summary, mapping=aes(y=M), position=position_dodge(width=0.75), size=3)+
+  geom_errorbar(data=data1_summary, mapping=aes(y=M, ymin=M-SE, ymax=M+SE), position=position_dodge(width=0.75), width=0.2)+
+  labs(title="All subjects", x="Condition", y="Response Time (ms)")+
+  scale_color_manual(name="Center", labels=c("Cross", "Symbol"), values=c("#E64B35", "#4DBBD5"))+
+  theme_bw(base_size=14)+
+  theme(panel.grid = element_blank())
 
 #ANOVA analysis 1
 
@@ -91,12 +97,18 @@ data2 <- data1 %>% filter(subject_id %in% subjects_who_followed_instructions)
 
 #second bar graph
 
+data2_summary <- data2 %>% group_by(condition, center) %>%
+  summarize(M = mean(RT), SE = sd(RT) / sqrt(n()))
+
 # plot restricted data
-ggplot(data2, aes(x=condition, y=RT, fill=center)) + 
-  geom_boxplot()+
-  labs(x="Condition", y="Response Time (ms)")+
-  scale_fill_manual(name="Center", labels=c("Cross", "Oddball"), values = c("cross"="darkseagreen3", "oddball"="lightgoldenrod1"))+
-  theme_bw(base_size=14)
+plot_restricted <- ggplot(data2, aes(x=condition, y=RT, color=center)) + 
+  geom_jitter(alpha=0.2, position = position_jitterdodge(jitter.width=0.2))+
+  geom_point(data=data2_summary, mapping=aes(y=M), position=position_dodge(width=0.75), size=3)+
+  geom_errorbar(data=data2_summary, mapping=aes(y=M, ymin=M-SE, ymax=M+SE), position=position_dodge(width=0.75), width=0.2)+
+  labs(title="Subjects who used intended strategy", x="Condition", y="Response Time (ms)")+
+  scale_color_manual(name="Center", labels=c("Cross", "Symbol"), values=c("#E64B35", "#4DBBD5"))+
+  theme_bw(base_size=14)+
+  theme(panel.grid = element_blank())
 
 #ANOVA analysis 2
 
@@ -105,7 +117,6 @@ anova2$ANOVA
 
 # check within abstract group to see if spontaneous language use
 # reduces RT
-
 
 
 # create table of who used language and who didn't
@@ -125,8 +136,10 @@ data_abstract_only <- abstract_data %>%
 t.test(RT ~ used_language, data=data_abstract_only)
 
 
+# create merged figure
+library(patchwork)
 
-
+plot_all + plot_restricted
 
 
 

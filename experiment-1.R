@@ -1,34 +1,22 @@
 #load library packages
-#install.packages("readr")
-#install.packages("dplyr")
-#install.packages("ez")
-#install.packages("ggplot2")
 library(readr)
 library(dplyr)
 library(ez)
 library(ggplot2)
 
-
-
-
 #import data file
-data <- read.csv("bashers_prolific_data.csv")
+data <- read.csv("exp-1-data.csv")
   
-
-
-
-#clean data
-
+#get subset of data relevant to experiment
 data <- data %>%
   select(subject_id, condition, target_present, center, trial_index, trial_type, key_press, correct, rt)%>%
-  mutate(condition = if_else(condition == 0 | condition == 1, "language","abstract"))
+  mutate(condition = if_else(condition == 0 | condition == 1, "language", "abstract"))
 
-
-
-#implement exclusion criteria 
+# visualize RT histogram to determine cutoff times for short/long responses
 
 data_p <- data%>%
   filter(trial_type=="visual-search-circle")
+
 ggplot(data_p, aes(x=rt)) + 
   geom_histogram(binwidth = 15) + 
   labs(x="Response Time (ms)", y="Count") +
@@ -36,11 +24,6 @@ ggplot(data_p, aes(x=rt)) +
   coord_cartesian(xlim=c(0,1000)) +
   theme_bw()
 
-
-#zoomed in version
-
-data_p <- data%>%
-  filter(trial_type=="visual-search-circle")
 ggplot(data_p, aes(x=rt)) + 
   geom_histogram(binwidth = 15) + 
   labs(x="Response Time (ms)", y="Count") +
@@ -49,7 +32,8 @@ ggplot(data_p, aes(x=rt)) +
   theme_bw()
 
 
-#first ANOVA with all participants
+# grab test trial data, merge together, filter to correct responses
+# within RT range, calculate subject means for each cell
 
 language_data <- data %>%
   filter(condition== "language") %>%
@@ -67,81 +51,25 @@ data1 <- data1 %>%
   group_by(subject_id, condition, center) %>%
   summarise(RT = mean(rt))
 
+# are there subjects who only have data for one cell?
+data1_n_per_subject <- data1 %>% group_by(subject_id) %>%
+  summarize(n = n()) %>% filter(n < 2)
 
-#Bar graph (to be changed to box plot)
+# yes, remove from data.
+data1 <- data1 %>% filter(!subject_id %in% data1_n_per_subject$subject_id)
 
-#summarize
+# plot data
 
-data1_summary <- data1 %>%
-  group_by(condition, center) %>%
-  summarise(M=mean(RT), SE = sd(RT)/sqrt(n()))
-
-#plot
-
-ggplot(data1_summary, aes(x=condition, y=M, fill=center)) +
-  geom_bar(stat = "identity", color="black", position=position_dodge()) +
-  geom_errorbar(aes(ymin=M-SE, ymax=M+SE), width=0.2, position=position_dodge(0.9)) +
-  labs(x="Condition", y="Response Time (ms)") +
-  scale_fill_manual(name="Center", 
-                    labels=c("Cross", "Oddball"),
-                    values = c("cross"="darkseagreen3", "oddball"="lightgoldenrod1")) +
-  scale_x_discrete(labels=c("Abstract", "Language"))+
-  theme_bw()
-
-
-
-
-#boxplot attempt
-#ggplot(data1_summary, aes(x=condition, y=M, fill=center)) + 
-# geom_boxplot() +
-
- ## labs(x="Condition", y="Response Time (ms)") +
- # scale_fill_manual(name="Center", labels=c("Cross", "Oddball"), values = c("cross"="darkseagreen3", "oddball"="lightgoldenrod1")) +
- ## geom_errorbar(aes(ymin=M-SE, ymax=M+SE), width=0.2, position=position_dodge(0.9)) +
- # scale_x_discrete(labels=c("Abstract", "Language")) +
- # stat_summary(fun=mean, geom="point", shape=23, size=4) 
-  
-  #geom_jitter(shape=16, position=position_jitter(0.2)) +
-
-
-
-  
-
-  #FIRST ANOVA WITH ALL PARTICIPANTS BOXPLOT FINISHED%
-
-data = read.csv("~/../Downloads/bashers_prolific_data.csv")
-data1 <- data %>%
-  filter(correct==1)%>%
-  filter(rt >250) %>%
-  filter(rt <12500) %>%
-  group_by(subject_id, condition, center) %>%
-  summarise(RT = mean(rt), SE = sd(RT)/sqrt(n()))
-
-data1$condition[data1$condition == 0] = "language"
-data1$condition[data1$condition == 1] = "language"
-data1$condition[data1$condition == 2] = "abstract"
-data1$condition[data1$condition == 3] = "abstract"
-
-ggplot(data1, aes(x=condition, y=RT, fill=center)) + geom_boxplot() +
-  labs(x="Condition", y="Response Time (ms)") +
-  scale_fill_manual(name="Center", labels=c("Cross", "Oddball"), values = c("cross"="darkseagreen3", "oddball"="lightgoldenrod1")) +
-  geom_errorbar(aes(ymin=RT-SE, ymax=RT+SE), width=0.2, position=position_dodge(0.9)) +
-  scale_x_discrete(labels=c("Abstract", "Language")) +
-  stat_summary(fun=mean, geom="point", shape=23, size=4, position=position_dodge(0.75)) +
-  theme_bw()
-
-
-
-
-
+ggplot(data1, aes(x=condition, y=RT, fill=center)) + 
+  geom_boxplot()+
+  labs(x="Condition", y="Response Time (ms)")+
+  scale_fill_manual(name="Center", labels=c("Cross", "Oddball"), values = c("cross"="darkseagreen3", "oddball"="lightgoldenrod1"))+
+  theme_bw(base_size=14)
 
 #ANOVA analysis 1
 
-anova1 <- aov(RT ~ center*condition, data=data1)
-summary(anova1)
-
-
-
+anova1 <- ezANOVA(data1, RT, subject_id, within=c(center), between=c(condition))
+anova1$ANOVA
 
 #second ANOVA (participants who followed condition instructions)
 
@@ -150,113 +78,51 @@ l_participants <- data %>%
   filter(trial_index==123) %>%
   filter(key_press==65)
 
-language_data2 <- data %>%
-  filter(condition=="language") %>%
-  filter(subject_id %in% l_participants$subject_id) %>%
-  filter(trial_index %in% c(11:36, 38:63, 70:95,97:122))
-
 a_participants <- data %>%
   filter(condition=="abstract") %>%
   filter(trial_index==122) %>%
   filter(key_press==76)
 
-abstract_data2 <- data %>%
-  filter(condition=="abstract") %>%
-  filter(subject_id %in% a_participants$subject_id) %>%
-  filter(trial_index %in% c(10:35, 37:62, 69:94,96:121))
+subjects_who_followed_instructions <- unique(
+  c(l_participants$subject_id, a_participants$subject_id)
+)
 
-data2 <- rbind(language_data2, abstract_data2)
-data2 <- data2 %>%
-  filter(correct==1) %>%
-  filter(rt >250) %>%
-  filter(rt <12500) %>%
-  group_by(subject_id, condition, center) %>%
-  summarise(RT = mean(rt))
+data2 <- data1 %>% filter(subject_id %in% subjects_who_followed_instructions)
 
 #second bar graph
 
-#summarize
+# plot restricted data
+ggplot(data2, aes(x=condition, y=RT, fill=center)) + 
+  geom_boxplot()+
+  labs(x="Condition", y="Response Time (ms)")+
+  scale_fill_manual(name="Center", labels=c("Cross", "Oddball"), values = c("cross"="darkseagreen3", "oddball"="lightgoldenrod1"))+
+  theme_bw(base_size=14)
 
-data2_summary <- data2 %>%
-  group_by(condition, center) %>%
-  summarise(M=mean(RT), SE = sd(RT)/sqrt(n()))
+#ANOVA analysis 2
 
-#plot (make this into boxplot if possible)
+anova2 <- ezANOVA(data2, RT, subject_id, within=c(center), between=c(condition))
+anova2$ANOVA
 
-#ggplot(data2_summary, aes(x=condition, y=M, fill=center)) +
- # geom_bar(stat = "identity", color="black", position=position_dodge()) +
-  #geom_errorbar(aes(ymin=M-SE, ymax=M+SE), width=0.2, position=position_dodge(0.9)) +
-#  labs(x="Condition", y="Response Time (ms)") +
- # scale_fill_manual(name="Center", 
-  #                  labels=c("Cross", "Oddball"),
-   #                 values = c("cross"="darkseagreen3", "oddball"="lightgoldenrod1")) +
-#  scale_x_discrete(labels=c("Abstract", "Language"))+
-#  theme_bw()
+# check within abstract group to see if spontaneous language use
+# reduces RT
 
 
 
-
-#SECOND ANOVA BOXPLOT WITH SUBSET PARTICIPANTS 
-
-data = read.csv("~/../Downloads/bashers_prolific_data.csv")
-
-l_participants <- data %>%
-  filter(condition=="language") %>%
-  filter(trial_index==123) %>%
-  filter(key_press==65)
-
-language_data2 <- data %>%
-  filter(condition=="language") %>%
-  filter(subject_id %in% l_participants$subject_id) %>%
-  filter(trial_index %in% c(11:36, 38:63, 70:95,97:122))
+# create table of who used language and who didn't
 
 a_participants <- data %>%
   filter(condition=="abstract") %>%
   filter(trial_index==122) %>%
-  filter(key_press==76)
+  mutate(used_language = (key_press == 65)) %>%
+  select(subject_id, used_language)
 
-abstract_data2 <- data %>%
-  filter(condition=="abstract") %>%
-  filter(subject_id %in% a_participants$subject_id) %>%
-  filter(trial_index %in% c(10:35, 37:62, 69:94,96:121))
+data_abstract_only <- abstract_data %>%
+  filter(correct == 1, rt > 250, rt < 12500) %>%
+  group_by(subject_id) %>%
+  summarise(RT = mean(rt)) %>%
+  left_join(a_participants, by=c("subject_id"))
 
-data2 <- rbind(language_data2, abstract_data2)
-
-
-data2 <- data2 %>%
-  filter(correct==1)%>%
-  filter(rt >250) %>%
-  filter(rt <12500) %>%
-  group_by(subject_id, condition, center) %>%
-  summarise(RT = mean(rt), SE = sd(RT)/sqrt(n()))
-
-data1$condition[data1$condition == 0] = "language"
-data1$condition[data1$condition == 1] = "language"
-data1$condition[data1$condition == 2] = "abstract"
-data1$condition[data1$condition == 3] = "abstract"
-
-ggplot(data2, aes(x=condition, y=RT, fill=center)) + geom_boxplot() +
-  labs(x="Condition", y="Response Time (ms)") +
-  scale_fill_manual(name="Center", labels=c("Cross", "Oddball"), values = c("cross"="darkseagreen3", "oddball"="lightgoldenrod1")) +
-  geom_errorbar(aes(ymin=RT-SE, ymax=RT+SE), width=0.2, position=position_dodge(0.9)) +
-  scale_x_discrete(labels=c("Abstract", "Language")) +
-  stat_summary(fun=mean, geom="point", shape=23, size=4, position=position_dodge(0.75)) +
-  theme_bw()
-
-
-
-
-
-
-
-
-
-#ANOVA analysis 2
-
-anova2 <- aov(RT ~ center*condition, data=data2)
-summary(anova2)
-
-
+t.test(RT ~ used_language, data=data_abstract_only)
 
 
 

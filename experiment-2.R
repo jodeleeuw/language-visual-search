@@ -30,7 +30,7 @@ data1 <- data1 %>%
   filter(correct==1)%>%
   filter(rt >250) %>%
   filter(rt <12500) %>%
-  group_by(subject_id, condition, center) %>%
+  group_by(subject_id, condition, target_present, center) %>%
   summarise(RT = mean(rt))
 
 # are there subjects who only have data for not all cells?
@@ -39,13 +39,13 @@ data1_n_per_subject <- data1 %>% group_by(subject_id) %>%
 
 # no, but there are a handful of subjects with data for more than 3 runs! must have restarted the experiment.
 # remove these subjects
-subjects_who_completed_experiment_twice <- data1_n_per_subject %>% filter(n > 3)
+subjects_who_completed_experiment_twice <- data1_n_per_subject %>% filter(n != 6)
 
 data1 <- data1 %>% filter(!subject_id %in% subjects_who_completed_experiment_twice$subject_id)
 
 # plot
 
-data1_summary <- data1 %>% group_by(condition, center) %>%
+data1_summary <- data1 %>% group_by(condition, target_present, center) %>%
   summarize(M = mean(RT), SE = sd(RT) / sqrt(n()))
 
 plot_all <- ggplot(data1, aes(x=condition, y=RT, color=center)) + 
@@ -56,10 +56,13 @@ plot_all <- ggplot(data1, aes(x=condition, y=RT, color=center)) +
   scale_color_manual(name="Center", labels=c("Cross", "Symbol", "Large Symbol"), values=c("#E64B35", "#4DBBD5", "#01A087"))+
   theme_bw(base_size=14)+
   coord_cartesian(ylim = c(0,8000))+
+  facet_wrap(~target_present)+
   theme(panel.grid = element_blank())
 #ANOVA Analysis
 
-anova1 <- ezANOVA(data1, dv = RT, wid = subject_id, within = center, between = condition)
+plot_all
+
+anova1 <- ezANOVA(data1 %>% filter(target_present==TRUE), dv = RT, wid = subject_id, within = center, between = condition)
 anova1$ANOVA
 
 
@@ -86,7 +89,7 @@ data2 <- data1 %>%
 
 # plot
 
-data2_summary <- data2 %>% group_by(condition, center) %>%
+data2_summary <- data2 %>% group_by(condition, target_present, center) %>%
   summarize(M = mean(RT), SE = sd(RT) / sqrt(n()))
 
 plot_restricted <- ggplot(data2, aes(x=condition, y=RT, color=center)) + 
@@ -97,7 +100,10 @@ plot_restricted <- ggplot(data2, aes(x=condition, y=RT, color=center)) +
   scale_color_manual(name="Center", labels=c("Cross", "Symbol", "Large Symbol"), values=c("#E64B35", "#4DBBD5", "#01A087"))+
   theme_bw(base_size=14)+
   coord_cartesian(ylim = c(0,8000))+
+  facet_wrap(~target_present)+
   theme(panel.grid = element_blank())
+
+plot_restricted
 
 #ANOVA Analysis
 
@@ -106,7 +112,7 @@ data2 <- data2 %>%
          center = factor(center),
          condition = factor(condition))
 
-anova2 <- ezANOVA(data2, dv = RT, wid = subject_id, within = center, between = condition)
+anova2 <- ezANOVA(data2 %>% filter(target_present==TRUE), dv = RT, wid = subject_id, within = center, between = condition)
 anova2$ANOVA
 
 # create table of who used language and who didn't
@@ -118,7 +124,7 @@ a_participants <- data %>%
   select(subject_id, used_language)
 
 data_abstract_only <- abstract_data %>%
-  filter(correct == 1, rt > 250, rt < 12500) %>%
+  filter(correct == 1, rt > 250, rt < 12500, target_present==TRUE) %>%
   group_by(subject_id) %>%
   summarise(RT = mean(rt)) %>%
   left_join(a_participants, by=c("subject_id"))
